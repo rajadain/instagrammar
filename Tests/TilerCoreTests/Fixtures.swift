@@ -117,7 +117,7 @@ enum Fixtures {
         guard CGImageDestinationFinalize(dest) else { throw FixtureError.cannotFinalize }
     }
 
-    enum FixtureError: Error { case cannotCreateDestination, cannotFinalize, cannotCreateContext }
+    enum FixtureError: Error { case cannotCreateDestination, cannotFinalize, cannotCreateContext, cannotRead }
 
     // MARK: Images
 
@@ -204,6 +204,72 @@ enum Fixtures {
         if a == 0 || a == 255 { return RGBA(r: buf[0], g: buf[1], b: buf[2], a: a) }
         func un(_ v: UInt8) -> UInt8 { UInt8(min(255, (Int(v) * 255 + Int(a) / 2) / Int(a))) }
         return RGBA(r: un(buf[0]), g: un(buf[1]), b: un(buf[2]), a: a)
+    }
+
+    /// All pixels of `image` as RGBA8 bytes (sRGB, premultiplied), rows top to bottom.
+    static func rgbaBytes(_ image: CGImage) -> [UInt8] {
+        let w = image.width, h = image.height
+        var buf = [UInt8](repeating: 0, count: w * h * 4)
+        buf.withUnsafeMutableBytes { raw in
+            let ctx = CGContext(
+                data: raw.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+            ctx.interpolationQuality = .none
+            ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        }
+        return buf
+    }
+
+    /// Mean absolute RGB difference (0…1) between `a` and the `a`-sized window of `b` whose
+    /// top-left is at (`bx`, `by`) (y-down).
+    static func meanAbsDiff(_ a: CGImage, _ b: CGImage, bx: Int = 0, by: Int = 0) -> Double {
+        precondition(bx + a.width <= b.width && by + a.height <= b.height, "window out of bounds")
+        let pa = rgbaBytes(a), pb = rgbaBytes(b)
+        var sum = 0
+        for y in 0..<a.height {
+            for x in 0..<a.width {
+                let ia = (y * a.width + x) * 4, ib = ((y + by) * b.width + (x + bx)) * 4
+                for c in 0..<3 { sum += abs(Int(pa[ia + c]) - Int(pb[ib + c])) }
+            }
+        }
+        return Double(sum) / Double(a.width * a.height * 3) / 255
+    }
+
+    /// A solid, opaque image of one colour.
+    static func solid(width: Int, height: Int, color: RGBA = white) -> CGImage {
+        let ctx = makeContext(width: width, height: height, colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
+        ctx.setFillColor(red: CGFloat(color.r) / 255, green: CGFloat(color.g) / 255,
+                         blue: CGFloat(color.b) / 255, alpha: CGFloat(color.a) / 255)
+        ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        return ctx.makeImage()!
+    }
+
+    /// Left half fully transparent, right half opaque red (for alpha-flattening tests).
+    static func halfTransparent(width: Int, height: Int) -> CGImage {
+        let ctx = makeContext(width: width, height: height, colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
+        ctx.clear(CGRect(x: 0, y: 0, width: width, height: height))
+        ctx.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        ctx.fill(CGRect(x: width / 2, y: 0, width: width - width / 2, height: height))
+        return ctx.makeImage()!
+    }
+
+    /// Writes any image as a JPEG with the given properties (e.g. a `solid` fixture).
+    static func writeJPEG(image: CGImage, properties: [CFString: Any] = [:],
+                          name: String = "fixture", in directory: URL? = nil) throws -> URL {
+        let dir = try directory ?? makeTempDirectory()
+        let url = dir.appendingPathComponent("\(name).jpg")
+        try write(image, as: .jpeg, properties: properties, to: url)
+        return url
+    }
+
+    /// Reads the first image and its properties from a file.
+    static func read(_ url: URL) throws -> (image: CGImage, properties: [CFString: Any]) {
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let image = CGImageSourceCreateImageAtIndex(src, 0, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]
+        else { throw FixtureError.cannotRead }
+        return (image, props)
     }
 
     /// True when each channel of `p` is within `tolerance` of `expected` (alpha ignored).
