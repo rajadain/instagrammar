@@ -58,3 +58,8 @@ import Testing
         #expect(try JSONDecoder().decode(AspectPreset.self, from: pdata) == preset)
     }
 }
+
+@Test func straightenDegreesAtZeroIsPositiveZero() {
+    let s = CropState(center: .zero, width: 100, angle: 0)
+    #expect(s.straightenDegrees.sign == .plus)
+}

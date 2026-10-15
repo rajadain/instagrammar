@@ -42,7 +42,8 @@ public struct CropState: Hashable, Codable, Sendable {
 
     /// Converts `angle` (radians) to a Straighten value σ (degrees): `σ = −angle·180/π`.
     public static func straightenDegrees(forAngle angle: Double) -> Double {
-        -angle * 180 / .pi
+        // `+ 0` normalises −0.0 to 0.0 so the UI never shows "-0 °".
+        -angle * 180 / .pi + 0
     }
 
     // CGPoint's Hashable conformance isn't guaranteed on every SDK, so hash explicitly.
