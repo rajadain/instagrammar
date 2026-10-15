@@ -43,7 +43,9 @@ struct ContentView: View {
                        crop: model.crop,
                        spec: model.spec,
                        orientedSize: source.orientedSize,
-                       onCropChange: { model.update(crop: $0) })
+                       onCropChange: { model.update(crop: $0) },
+                       onInteractionBegan: { model.beginEdit() },
+                       onInteractionEnded: { model.endEdit(actionName: $0) })
                 .overlay {
                     if model.isLoading { ProgressView().controlSize(.large) }
                 }
