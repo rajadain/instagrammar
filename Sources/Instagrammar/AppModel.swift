@@ -45,6 +45,8 @@ final class AppModel {
     /// Always clamped; change only through `update(crop:)`.
     private(set) var crop: CropState = CropState(center: .zero, width: 1)
     var alert: ModelAlert?
+    /// Carousel preview sheet (⌘P); see `Preview/`.
+    var isShowingCarouselPreview = false
 
     // MARK: Persisted settings
 
