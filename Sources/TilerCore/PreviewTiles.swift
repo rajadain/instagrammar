@@ -13,9 +13,7 @@ extension CropGeometry {
                                      quarterTurns: QuarterTurns, orientedSize: CGSize,
                                      previewSize: CGSize, outputSize: CGSize) -> CGAffineTransform {
         guard previewSize.width > 0, previewSize.height > 0 else { return .identity }
-        return CGAffineTransform(scaleX: orientedSize.width / previewSize.width,
-                                 y: orientedSize.height / previewSize.height)
-            .concatenating(quarterTurnTransform(quarterTurns, orientedSize: orientedSize))
+        return previewToS(previewSize: previewSize, orientedSize: orientedSize, quarterTurns: quarterTurns)
             .concatenating(sToTile(state: state, spec: spec, index: index, outputSize: outputSize))
     }
 }
