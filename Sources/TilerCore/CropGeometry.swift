@@ -195,6 +195,28 @@ public enum CropGeometry {
                                  to: CGPoint(x: ow / 2, y: oh / 2))
     }
 
+    /// Maps preview-image pixel coordinates (y-down, origin at the preview's top-left) to S-space:
+    /// a per-axis scale from preview pixels to oriented pixels (`orientedSize / previewSize`),
+    /// then the user's quarter turns (`quarterTurnTransform`).
+    public static func previewToS(previewSize: CGSize, orientedSize: CGSize,
+                                  quarterTurns: QuarterTurns) -> CGAffineTransform {
+        guard previewSize.width > 0, previewSize.height > 0 else { return .identity }
+        return CGAffineTransform(scaleX: orientedSize.width / previewSize.width,
+                                 y: orientedSize.height / previewSize.height)
+            .concatenating(quarterTurnTransform(quarterTurns, orientedSize: orientedSize))
+    }
+
+    /// Maps preview pixels straight to canvas points: `previewToS` followed by `viewTransform`
+    /// (normally `sToView(...).transform`). This is the canvas image layer's affine transform
+    /// when the layer's bounds are `(0, 0, previewW, previewH)` with anchor and position at the
+    /// origin of a y-down superlayer.
+    public static func previewToView(previewSize: CGSize, orientedSize: CGSize,
+                                     quarterTurns: QuarterTurns,
+                                     viewTransform: CGAffineTransform) -> CGAffineTransform {
+        previewToS(previewSize: previewSize, orientedSize: orientedSize, quarterTurns: quarterTurns)
+            .concatenating(viewTransform)
+    }
+
     /// `translate(target) · scale(sx, sy) · rotate(−angle) · translate(−pivot)`.
     private static func centeredTransform(on pivot: CGPoint, angle: Double,
                                           scaleX: Double, scaleY: Double,
@@ -235,6 +257,14 @@ public enum CropGeometry {
         var out = state
         out.angle = angle
         return out
+    }
+
+    /// Turns the *image on screen* counter-clockwise by `degrees` about the strip centre (a
+    /// trackpad rotation "follows the fingers" with this). The strip is drawn axis-aligned and the
+    /// image appears rotated by `−angle`, so the angle grows: `angle += degrees·π/180`, i.e. the
+    /// Straighten value σ decreases by `degrees`. Does not clamp or limit the angle.
+    public static func rotatedOnScreen(_ state: CropState, counterClockwiseDegrees degrees: Double) -> CropState {
+        rotated(state, toAngle: state.angle + degrees * .pi / 180)
     }
 
     /// Clamps `x` to `[lo, hi]`; if the interval is empty (floating-point noise), returns its midpoint.
