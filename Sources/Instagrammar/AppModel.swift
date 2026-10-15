@@ -42,27 +42,44 @@ final class AppModel {
     var preview: CGImage?
     var isLoading = false
     var quarterTurns: QuarterTurns = .r0
-    /// Always clamped; change only through `update(crop:)`.
-    private(set) var crop: CropState = CropState(center: .zero, width: 1)
+    /// Always clamped; change only through `update(crop:)` (and `AppModel+Undo`, which restores
+    /// previously valid snapshots verbatim).
+    var crop: CropState = CropState(center: .zero, width: 1)
     var alert: ModelAlert?
 
     // MARK: Persisted settings
 
     var aspectPreset: AspectPreset = .portrait4x5 {
         didSet {
-            if aspectPreset != oldValue { specChanged(old: makeSpec(preset: oldValue)); persist() }
+            guard aspectPreset != oldValue else { return }
+            if !isApplyingEdit {
+                let before = editState(preset: oldValue)
+                specChanged(old: makeSpec(preset: oldValue), editBefore: before, actionName: "Aspect")
+            }
+            persist()
         }
     }
     var customAspect: AspectRatio = .portrait4x5 {
         didSet {
-            if customAspect != oldValue { specChanged(old: makeSpec(custom: oldValue)); persist() }
+            guard customAspect != oldValue else { return }
+            if !isApplyingEdit {
+                let before = editState(custom: oldValue)
+                specChanged(old: makeSpec(custom: oldValue), editBefore: before, actionName: "Aspect",
+                            coalesced: true)
+            }
+            persist()
         }
     }
     var tileCount: Int = 3 {
         didSet {
             let clamped = min(max(tileCount, TileSpec.countRange.lowerBound), TileSpec.countRange.upperBound)
             if clamped != tileCount { tileCount = clamped; return }
-            if tileCount != oldValue { specChanged(old: makeSpec(count: oldValue)); persist() }
+            guard tileCount != oldValue else { return }
+            if !isApplyingEdit {
+                let before = editState(count: oldValue)
+                specChanged(old: makeSpec(count: oldValue), editBefore: before, actionName: "Tile Count")
+            }
+            persist()
         }
     }
     var exportSettings = ExportSettings() {
@@ -79,6 +96,27 @@ final class AppModel {
     @ObservationIgnored private var loadGeneration = 0
     @ObservationIgnored private var loadingURL: URL?
     @ObservationIgnored private var isRestoring = true
+
+    // MARK: Undo / redo (logic in AppModel+Undo.swift)
+
+    /// Owned by the model and driven by the Edit menu commands (see `InstagrammarApp`), so ⌘Z
+    /// works whichever view has focus. Grouping is explicit: one registration = one undo step.
+    @ObservationIgnored let undoManager: UndoManager = {
+        let m = UndoManager()
+        m.groupsByEvent = false
+        m.levelsOfUndo = 200
+        return m
+    }()
+    /// Mirrors of the undo manager's state, for menu items (UndoManager isn't observable).
+    var canUndo = false
+    var canRedo = false
+    var undoMenuTitle = "Undo"
+    var redoMenuTitle = "Redo"
+    /// An open interaction (`beginEdit`) or coalesced burst waiting to be registered.
+    @ObservationIgnored var pendingEdit: PendingEdit?
+    /// True while an undo/redo restores a snapshot: suppresses registration and respec.
+    @ObservationIgnored var isApplyingEdit = false
+    @ObservationIgnored var coalesceGeneration = 0
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -164,10 +202,10 @@ final class AppModel {
         if clamped != crop { crop = clamped }
     }
 
-    /// Fit at angle 0, centred.
+    /// Fit at angle 0, centred. One undo step ("Reset Crop").
     func resetCrop() {
         guard hasImage else { return }
-        crop = CropGeometry.fit(spec: spec, imageSize: workingImageSize)
+        discreteEdit("Reset Crop") { crop = CropGeometry.fit(spec: spec, imageSize: workingImageSize) }
     }
 
     func rotateLeft() { setQuarterTurns(quarterTurns.rotatedLeft) }
@@ -175,13 +213,20 @@ final class AppModel {
 
     private func setQuarterTurns(_ q: QuarterTurns) {
         guard hasImage else { return }
-        quarterTurns = q
-        resetCrop()
+        discreteEdit("Rotate") {
+            quarterTurns = q
+            crop = CropGeometry.fit(spec: spec, imageSize: workingImageSize)
+        }
     }
 
-    private func specChanged(old: TileSpec) {
+    /// Re-fits the crop after a spec change and records it as one undo step.
+    private func specChanged(old: TileSpec, editBefore: EditState, actionName: String,
+                             coalesced: Bool = false) {
         guard hasImage, !isRestoring else { return }
+        if coalesced { beginCoalescedEdit(actionName, from: editBefore) }
+        else { commitPendingEdit(endingAt: editBefore) }
         crop = CropGeometry.respec(crop, from: old, to: spec, imageSize: workingImageSize)
+        if !coalesced { registerEdit(from: editBefore, to: editState, actionName: actionName) }
     }
 
     private func makeSpec(preset: AspectPreset? = nil, custom: AspectRatio? = nil, count: Int? = nil) -> TileSpec {
@@ -226,6 +271,7 @@ final class AppModel {
                 return LoadedImage(source: source, preview: preview)
             }.value
             guard generation == loadGeneration else { return }
+            clearUndoHistory()
             source = loaded.source
             preview = loaded.preview
             quarterTurns = .r0

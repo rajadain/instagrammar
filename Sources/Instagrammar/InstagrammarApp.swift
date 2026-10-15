@@ -17,6 +17,7 @@ struct InstagrammarApp: App {
         }
         .defaultSize(width: 1280, height: 800)
         .commands {
+            UndoCommands(model: model)
             CommandGroup(replacing: .newItem) {
                 Button("Open…") { model.presentOpenPanel() }
                     .keyboardShortcut("o", modifiers: .command)

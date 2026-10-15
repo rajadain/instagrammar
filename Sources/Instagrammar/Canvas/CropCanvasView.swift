@@ -58,6 +58,20 @@ final class CropCanvasView: NSView {
     private let labelsLayer = CALayer()
     private var labelLayers: [CALayer] = []
 
+    // MARK: Interaction reporting (undo checkpoints)
+
+    /// Interaction boundaries for the model's undo history: one begin/end pair per pan drag,
+    /// pinch, rotate gesture, double-click, or coalesced scroll / key burst.
+    var onInteractionBegan: () -> Void = {}
+    var onInteractionEnded: (String) -> Void = { _ in }
+    /// How long a scroll or key-repeat burst may be silent before it counts as finished.
+    static let burstQuietInterval: TimeInterval = 0.5
+    /// Shorter wait after a trackpad scroll's finger-lift, in case momentum events follow.
+    static let scrollLiftInterval: TimeInterval = 0.2
+    /// Action name of the open interaction, nil when none is open.
+    private(set) var interactionName: String?
+    private var interactionTimer: DispatchWorkItem?
+
     // MARK: Interaction state
 
     private var dragLast: CGPoint?
@@ -422,6 +436,54 @@ final class CropCanvasView: NSView {
         return min(max(angle, -limit), limit)
     }
 
+    // MARK: Interaction boundaries
+
+    /// Opens an interaction named `name` (closing a different open one first). Idempotent for
+    /// the same name.
+    func beginInteraction(_ name: String) {
+        if let open = interactionName {
+            if open == name { return }
+            endInteraction()
+        }
+        interactionName = name
+        onInteractionBegan()
+    }
+
+    /// Closes the open interaction, if any, which registers its undo step.
+    func endInteraction() {
+        interactionTimer?.cancel()
+        interactionTimer = nil
+        guard let name = interactionName else { return }
+        interactionName = nil
+        onInteractionEnded(name)
+    }
+
+    /// (Re)starts the quiet timer that closes the open interaction: used for scroll and key
+    /// bursts, which have no reliable end event.
+    private func endInteraction(afterQuiet interval: TimeInterval) {
+        interactionTimer?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.endInteraction() }
+        interactionTimer = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + interval, execute: work)
+    }
+
+    /// A burst event (key repeat, wheel tick): joins the open burst of the same kind, else
+    /// starts one, then waits for quiet.
+    private func noteBurst(_ name: String) {
+        beginInteraction(name)
+        endInteraction(afterQuiet: Self.burstQuietInterval)
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        endInteraction()
+        super.viewWillMove(toWindow: newWindow)
+    }
+
+    override func resignFirstResponder() -> Bool {
+        endInteraction()
+        return super.resignFirstResponder()
+    }
+
     // MARK: Gesture handlers (pure-ish: event plumbing lives in the NSEvent overrides)
 
     /// Pans so the image follows the pointer by `delta` view points (y-down).
@@ -473,10 +535,14 @@ final class CropCanvasView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        endInteraction()   // A burst (keys, wheel) still waiting for quiet ends here.
         if event.clickCount == 2 {
+            beginInteraction("Reset Crop")
             handleResetFit()
+            endInteraction()
             return
         }
+        beginInteraction("Pan")
         dragLast = viewPoint(event)
         isDragging = true
         NSCursor.closedHand.set()
@@ -494,6 +560,7 @@ final class CropCanvasView: NSView {
     override func mouseUp(with event: NSEvent) {
         dragLast = nil
         isDragging = false
+        endInteraction()
         noteInteraction()   // Let the overlays linger briefly, then hide.
         updateHover(at: viewPoint(event))
     }
@@ -539,18 +606,41 @@ final class CropCanvasView: NSView {
             // Two-finger trackpad scroll pans. `scrollingDelta` already follows the user's
             // natural-scrolling setting, and positive values move content right/down, exactly
             // like NSScrollView, so the image moves with the fingers.
+            beginInteraction("Pan")
             handlePan(viewDelta: CGVector(dx: event.scrollingDeltaX, dy: event.scrollingDeltaY))
+            noteScrollEnd(event)
         } else {
             // Mouse wheel (line deltas) or ⌘ + scroll zooms about the pointer; scrolling up
             // (positive deltaY) zooms in.
             let dy = Double(event.scrollingDeltaY)
             let factor = event.hasPreciseScrollingDeltas ? pow(1.005, dy) : pow(1.1, dy)
+            beginInteraction("Zoom")
             handleZoom(factor: factor, atViewPoint: viewPoint(event))
+            noteScrollEnd(event)
+        }
+    }
+
+    /// One scroll burst = one undo step: it ends when momentum ends, shortly after the fingers
+    /// lift (unless momentum follows), or after `burstQuietInterval` without events.
+    private func noteScrollEnd(_ event: NSEvent) {
+        if event.momentumPhase.contains(.ended) || event.momentumPhase.contains(.cancelled) {
+            endInteraction()
+        } else if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
+            endInteraction(afterQuiet: Self.scrollLiftInterval)
+        } else {
+            endInteraction(afterQuiet: Self.burstQuietInterval)
         }
     }
 
     override func magnify(with event: NSEvent) {
+        // Phased pinch (trackpad): began ... ended. Unphased events fall back to a burst.
+        if event.phase.contains(.began) || interactionName != "Zoom" { beginInteraction("Zoom") }
         handleZoom(factor: 1 + Double(event.magnification), atViewPoint: viewPoint(event))
+        if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
+            endInteraction()
+        } else if event.phase.isEmpty {
+            endInteraction(afterQuiet: Self.burstQuietInterval)
+        }
     }
 
     /// Trackpad rotation. `NSEvent.rotation` is the per-event change in degrees, positive for
@@ -562,8 +652,14 @@ final class CropCanvasView: NSView {
         case .began: beginRotateGesture()
         default: break
         }
+        if event.phase.contains(.began) || interactionName != "Rotate" { beginInteraction("Rotate") }
         handleRotate(counterClockwiseDegrees: Double(event.rotation))
-        if event.phase == .ended || event.phase == .cancelled { endRotateGesture() }
+        if event.phase == .ended || event.phase == .cancelled {
+            endRotateGesture()
+            endInteraction()
+        } else if event.phase.isEmpty {
+            endInteraction(afterQuiet: Self.burstQuietInterval)
+        }
     }
 
     // MARK: Keyboard
@@ -577,19 +673,24 @@ final class CropCanvasView: NSView {
         let step: CGFloat = shift ? 10 : 1
         // Arrow keys move the image in the arrow's direction, like dragging it.
         switch event.specialKey {
-        case .leftArrow?: return handlePan(viewDelta: CGVector(dx: -step, dy: 0))
-        case .rightArrow?: return handlePan(viewDelta: CGVector(dx: step, dy: 0))
-        case .upArrow?: return handlePan(viewDelta: CGVector(dx: 0, dy: -step))
-        case .downArrow?: return handlePan(viewDelta: CGVector(dx: 0, dy: step))
+        case .leftArrow?: return keyPan(CGVector(dx: -step, dy: 0))
+        case .rightArrow?: return keyPan(CGVector(dx: step, dy: 0))
+        case .upArrow?: return keyPan(CGVector(dx: 0, dy: -step))
+        case .downArrow?: return keyPan(CGVector(dx: 0, dy: step))
         default: break
         }
         let centre = CGPoint(x: mapping!.stripRect.midX, y: mapping!.stripRect.midY)
         switch event.charactersIgnoringModifiers {
-        case "+", "=": handleZoom(factor: 1.1, atViewPoint: centre)
-        case "-", "_": handleZoom(factor: 1 / 1.1, atViewPoint: centre)
-        case ",", "<": handleStraighten(byDegrees: shift ? -1 : -0.1)
-        case ".", ">": handleStraighten(byDegrees: shift ? 1 : 0.1)
+        case "+", "=": noteBurst("Zoom"); handleZoom(factor: 1.1, atViewPoint: centre)
+        case "-", "_": noteBurst("Zoom"); handleZoom(factor: 1 / 1.1, atViewPoint: centre)
+        case ",", "<": noteBurst("Straighten"); handleStraighten(byDegrees: shift ? -1 : -0.1)
+        case ".", ">": noteBurst("Straighten"); handleStraighten(byDegrees: shift ? 1 : 0.1)
         default: super.keyDown(with: event)
         }
+    }
+
+    private func keyPan(_ delta: CGVector) {
+        noteBurst("Pan")
+        handlePan(viewDelta: delta)
     }
 }

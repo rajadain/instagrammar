@@ -17,7 +17,7 @@ struct AdjustSection: View {
                         .frame(width: 52)
                     Text("°").foregroundStyle(.secondary)
                     Button {
-                        model.straightenDegrees = 0
+                        model.performEdit("Straighten") { model.straightenDegrees = 0 }
                     } label: {
                         Image(systemName: "arrow.counterclockwise")
                     }
@@ -25,8 +25,11 @@ struct AdjustSection: View {
                     .help("Reset straighten")
                     .disabled(model.straightenDegrees == 0)
                 }
-                Slider(value: straighten, in: AppModel.straightenRange, step: 0.1)
-                    .labelsHidden()
+                // A drag is one undo step, recorded when it ends.
+                Slider(value: straighten, in: AppModel.straightenRange, step: 0.1) { editing in
+                    if editing { model.beginEdit("Straighten") } else { model.endEdit() }
+                }
+                .labelsHidden()
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -38,9 +41,11 @@ struct AdjustSection: View {
                         .foregroundStyle(.secondary)
                 }
                 // Logarithmic: the slider value is ln(zoom).
-                Slider(value: logZoom, in: 0...max(log(model.zoomRange.upperBound), 0.0001))
-                    .labelsHidden()
-                    .disabled(model.zoomRange.upperBound <= 1)
+                Slider(value: logZoom, in: 0...max(log(model.zoomRange.upperBound), 0.0001)) { editing in
+                    if editing { model.beginEdit("Zoom") } else { model.endEdit() }
+                }
+                .labelsHidden()
+                .disabled(model.zoomRange.upperBound <= 1)
             }
 
             HStack {
@@ -63,10 +68,12 @@ struct AdjustSection: View {
     }
 
     private var straighten: Binding<Double> {
-        Binding(get: { model.straightenDegrees }, set: { model.straightenDegrees = $0 })
+        Binding(get: { model.straightenDegrees },
+                set: { v in model.performEdit("Straighten") { model.straightenDegrees = v } })
     }
 
     private var logZoom: Binding<Double> {
-        Binding(get: { log(model.zoom) }, set: { model.zoom = exp($0) })
+        Binding(get: { log(model.zoom) },
+                set: { v in model.performEdit("Zoom") { model.zoom = exp(v) } })
     }
 }

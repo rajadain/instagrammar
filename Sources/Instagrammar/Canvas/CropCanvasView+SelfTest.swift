@@ -16,7 +16,9 @@ extension CropCanvasView {
         ProcessInfo.processInfo.environment["INSTAGRAMMAR_CANVAS_SELFTEST"] == "1"
 
     func startSelfTestIfRequested() {
-        guard Self.selfTestRequested, !selfTestStarted, mapping != nil, window != nil else { return }
+        guard Self.selfTestRequested || Self.undoSelfTestRequested,
+              !selfTestStarted, mapping != nil, window != nil else { return }
+        if Self.undoSelfTestRequested { return startUndoSelfTest() }
         selfTestStarted = true
         Task { @MainActor in
             let ok = await CanvasSelfTest(view: self).run()
