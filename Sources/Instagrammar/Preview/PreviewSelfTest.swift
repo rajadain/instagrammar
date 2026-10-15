@@ -61,6 +61,14 @@ enum PreviewSelfTest {
         for _ in 0..<(preview.count + 2) { preview.next() }
         check(preview.index == preview.count - 1, "next stops at the last tile")
 
+        // The real sheet: open it through the model flag and look for an attached sheet window.
+        model.showCarouselPreview()
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        check(NSApp.windows.contains { $0.sheetParent != nil }, "⌘P sheet is presented")
+        model.isShowingCarouselPreview = false
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        check(!NSApp.windows.contains { $0.sheetParent != nil }, "sheet dismissed")
+
         if !failures.isEmpty { log("failures: \(failures.joined(separator: "; "))") }
         return failures.isEmpty
     }
