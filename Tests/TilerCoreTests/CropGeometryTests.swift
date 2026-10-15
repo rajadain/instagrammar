@@ -364,3 +364,99 @@ private let wide = CGSize(width: 6000, height: 2000)
         #expect(marker.applying(ml.transform).y < marker.applying(m0.transform).y)
     }
 }
+
+// MARK: - Canvas image layer transform (Phase 5)
+
+@Suite struct CanvasLayerTransformTests {
+    private let oriented = CGSize(width: 6000, height: 4000)
+
+    private func previewCorners(_ p: CGSize) -> [CGPoint] {
+        [CGPoint(x: 0, y: 0), CGPoint(x: p.width, y: 0),
+         CGPoint(x: p.width, y: p.height), CGPoint(x: 0, y: p.height)]
+    }
+
+    /// Working-image (S-space) positions of the oriented image's TL, TR, BR, BL corners after
+    /// each clockwise quarter turn, worked out by hand.
+    private func expectedSCorners(_ q: QuarterTurns) -> [CGPoint] {
+        switch q {
+        case .r0: return [CGPoint(x: 0, y: 0), CGPoint(x: 6000, y: 0),
+                          CGPoint(x: 6000, y: 4000), CGPoint(x: 0, y: 4000)]
+        case .r90: return [CGPoint(x: 4000, y: 0), CGPoint(x: 4000, y: 6000),
+                           CGPoint(x: 0, y: 6000), CGPoint(x: 0, y: 0)]
+        case .r180: return [CGPoint(x: 6000, y: 4000), CGPoint(x: 0, y: 4000),
+                            CGPoint(x: 0, y: 0), CGPoint(x: 6000, y: 0)]
+        case .r270: return [CGPoint(x: 0, y: 6000), CGPoint(x: 0, y: 0),
+                            CGPoint(x: 4000, y: 0), CGPoint(x: 4000, y: 6000)]
+        }
+    }
+
+    @Test(arguments: QuarterTurns.allCases)
+    func previewCornersLandOnWorkingImageCorners(q: QuarterTurns) {
+        // 1537 × 1024 is deliberately not exactly 6000:4000, like a rounded thumbnail.
+        for preview in [CGSize(width: 1536, height: 1024), CGSize(width: 1537, height: 1024)] {
+            let t = CropGeometry.previewToS(previewSize: preview, orientedSize: oriented, quarterTurns: q)
+            let mapped = previewCorners(preview).map { $0.applying(t) }
+            for (p, e) in zip(mapped, expectedSCorners(q)) { #expect(close(p, e, 1e-6)) }
+        }
+    }
+
+    @Test func previewToViewHandComputedAtZeroAngle() {
+        // 6000×2000 image, 3 × 4:5 strip: fit is w 4800, h 2000, centred at (3000, 1000).
+        // View 1000×500, padding 20: scale = min(960/4800, 460/2000) = 0.2.
+        let size = CGSize(width: 6000, height: 2000)
+        let state = CropGeometry.fit(spec: spec3x45, imageSize: size)
+        let m = CropGeometry.sToView(state: state, spec: spec3x45,
+                                     viewSize: CGSize(width: 1000, height: 500), padding: 20)
+        let t = CropGeometry.previewToView(previewSize: CGSize(width: 600, height: 200),
+                                           orientedSize: size, quarterTurns: .r0,
+                                           viewTransform: m.transform)
+        #expect(close(CGPoint(x: 0, y: 0).applying(t), CGPoint(x: -100, y: 50)))
+        #expect(close(CGPoint(x: 600, y: 200).applying(t), CGPoint(x: 1100, y: 450)))
+        #expect(close(CGPoint(x: 300, y: 100).applying(t), CGPoint(x: 500, y: 250)))
+    }
+
+    @Test(arguments: QuarterTurns.allCases)
+    func previewToViewMatchesIndependentFormulaAtNonZeroAngle(q: QuarterTurns) {
+        let preview = CGSize(width: 1500, height: 1000)
+        let working = workingSize(oriented, q)
+        let spec = TileSpec(aspect: .portrait4x5, count: 3)
+        var state = CropGeometry.fit(spec: spec, imageSize: working, angle: degrees(-13))
+        state = CropGeometry.clamp(
+            CropGeometry.zoomed(state, factor: 1.4, anchorInS: CGPoint(x: working.width * 0.6,
+                                                                      y: working.height * 0.45)),
+            spec: spec, imageSize: working)
+        let view = CGSize(width: 1100, height: 700)
+        let m = CropGeometry.sToView(state: state, spec: spec, viewSize: view, padding: 24)
+        let t = CropGeometry.previewToView(previewSize: preview, orientedSize: oriented,
+                                           quarterTurns: q, viewTransform: m.transform)
+
+        // v = viewCentre + scale · R(−angle) · (S − centre), written out by hand.
+        let c = cos(state.angle), s = sin(state.angle)
+        func expectedView(_ sp: CGPoint) -> CGPoint {
+            let dx = Double(sp.x - state.center.x), dy = Double(sp.y - state.center.y)
+            return CGPoint(x: 550 + m.viewScale * (dx * c + dy * s),
+                           y: 350 + m.viewScale * (-dx * s + dy * c))
+        }
+        for (pc, sc) in zip(previewCorners(preview), expectedSCorners(q)) {
+            #expect(close(pc.applying(t), expectedView(sc), 1e-6))
+        }
+        // The preview centre is the working image centre.
+        let centre = CGPoint(x: working.width / 2, y: working.height / 2)
+        #expect(close(CGPoint(x: 750, y: 500).applying(t), expectedView(centre), 1e-6))
+    }
+
+    @Test func rotatedOnScreenTurnsImageCounterClockwise() {
+        let size = CGSize(width: 6000, height: 2000)
+        let view = CGSize(width: 1200, height: 600)
+        let s0 = CropGeometry.fit(spec: spec3x45, imageSize: size, angle: degrees(-3))
+        let r = CropGeometry.rotatedOnScreen(s0, counterClockwiseDegrees: 5)
+        #expect(close(r.straightenDegrees, s0.straightenDegrees - 5, 1e-9))
+        #expect(r.center == s0.center && r.width == s0.width)
+
+        // A marker right of the strip centre moves up (smaller y) on screen: counter-clockwise.
+        let marker = CGPoint(x: s0.center.x + 1000, y: s0.center.y)
+        let before = marker.applying(CropGeometry.sToView(state: s0, spec: spec3x45, viewSize: view, padding: 0).transform)
+        let after = marker.applying(CropGeometry.sToView(state: r, spec: spec3x45, viewSize: view, padding: 0).transform)
+        #expect(after.y < before.y)
+    }
+}
