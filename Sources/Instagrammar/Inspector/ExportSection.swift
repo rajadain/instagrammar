@@ -1,7 +1,7 @@
 import SwiftUI
 import TilerCore
 
-/// Output size, JPEG quality and the Export button. UI only; Phase 6 does the exporting.
+/// Output size, JPEG quality and the Export button. The export itself is `ExportCoordinator`.
 struct ExportSection: View {
     @Bindable var model: AppModel
 
@@ -60,6 +60,7 @@ struct ExportSection: View {
 
             Button("Export Tiles…") { model.requestExport() }
                 .buttonStyle(.borderedProminent)
+                .disabled(!model.canExport)
                 .frame(maxWidth: .infinity, alignment: .center)
         }
         .onAppear(perform: syncCustomState)
@@ -113,18 +114,11 @@ struct ExportSection: View {
     }
 
     /// Resulting pixel size for `size` at the current native size and aspect, or nil when it
-    /// would upscale (or there is no image). Private helper; TilerCore resolves this itself
-    /// at export time.
+    /// would upscale (or there is no image).
     private func pixelSize(of size: OutputSize) -> (width: Int, height: Int)? {
         let native = model.nativeTileSize
-        guard native.width > 0 else { return nil }
-        switch size {
-        case .native:
-            return native
-        case .width(let w):
-            guard w > 0, w <= native.width else { return nil }
-            return (w, Int((Double(w) / model.aspect.value).rounded()))
-        }
+        guard native.width > 0, isAvailable(size, native: native) else { return nil }
+        return size.pixelSize(native: native, aspect: model.aspect)
     }
 
     private func label(for size: OutputSize, dims: (width: Int, height: Int)?) -> String {
