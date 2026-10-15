@@ -28,6 +28,7 @@ struct ContentView: View {
         } isTargeted: { isDropTargeted = $0 }
         .toolbar { toolbarContent }
         .exportPresentation(model.exportCoordinator)
+        .carouselPreviewSheet(model)
         .alert(item: $model.alert) { alert in
             Alert(title: Text(alert.title), message: Text(alert.message),
                   dismissButton: .default(Text("OK")))
@@ -84,6 +85,7 @@ struct ContentView: View {
             }
             .help("Reset crop (⌘0)")
         }
+        ToolbarItem(placement: .primaryAction) { CarouselPreviewButton(model: model) }
         ToolbarItem(placement: .primaryAction) {
             Button { model.requestExport() } label: {
                 Label("Export", systemImage: "square.and.arrow.up")

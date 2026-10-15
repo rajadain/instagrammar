@@ -17,6 +17,15 @@ struct InstagrammarApp: App {
         }
         .defaultSize(width: 1280, height: 800)
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About Instagrammar") { AboutPanel.show() }
+            }
+            CommandGroup(before: .toolbar) {
+                Button("Preview Carousel") { model.showCarouselPreview() }
+                    .keyboardShortcut("p", modifiers: .command)
+                    .disabled(!model.canPreviewCarousel)
+                Divider()
+            }
             CommandGroup(replacing: .newItem) {
                 Button("Open…") { model.presentOpenPanel() }
                     .keyboardShortcut("o", modifiers: .command)
@@ -66,6 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let url = launchURL {
             #if DEBUG
             if ExportSelfTest.runIfRequested(url: url) { return }
+            if PreviewSelfTest.runIfRequested(url: url) { return }
             #endif
             Task { @MainActor in AppModel.shared.openInBackground(url: url) }
         }
