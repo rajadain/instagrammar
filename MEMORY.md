@@ -21,6 +21,7 @@ Durable decisions for this project. Agents: read this before starting any phase 
 | P11 | Output colour: **convert to sRGB** and embed the sRGB profile. | 2026-10-15 | User |
 | P12 | Output metadata: **keep EXIF/TIFF/IPTC** (camera, lens, date, copyright), **strip GPS**, set Orientation = 1, fix pixel dimensions. | 2026-10-15 | User |
 | P13 | Output format: JPEG only (v1). | 2026-10-15 | Claude default |
+| P14 | Sources with transparency (PNG/TIFF alpha) are flattened over **white** before JPEG encoding. | 2026-10-15 | Claude default |
 
 ## Technical
 
