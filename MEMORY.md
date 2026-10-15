@@ -59,3 +59,4 @@ Durable decisions for this project. Agents: read this before starting any phase 
 | T30 | Export timing (release, 3 native tiles): 0.13–0.24 s, 61–175 MB peak on 12–24 MP samples. | 2026-10-15 | Phase 3 agent |
 | T31 | `TilerCore` provides `OutputSize.pixelSize(native:aspect:)` and `isAvailable(_:native:)`; the app's Export section should use these instead of its private helper. `fileName(stem:index:count:)` takes a 0-based index. | 2026-10-15 | Coordinator |
 | T32 | Parallel agents share the Claude scratchpad; always use uniquely named temp dirs (`mktemp -d`). | 2026-10-15 | Phase 3 agent |
+| P15 | **XMP metadata is not needed** — user doesn't use Lightroom. Don't copy XMP; drop the T28 "possible later improvement". | 2026-10-15 | User |
