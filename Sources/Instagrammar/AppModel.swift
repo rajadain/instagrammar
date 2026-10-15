@@ -272,10 +272,12 @@ final class AppModel {
         return nil
     }
 
-    // MARK: Export (Phase 6 fills this in)
+    // MARK: Export (flow lives in Export/ExportCoordinator.swift)
 
-    /// Starts an export. Phase 6 replaces this with the folder panel + exporter.
-    func requestExport() {}
+    let exportCoordinator = ExportCoordinator()
+
+    /// ⌘E / toolbar / inspector button.
+    func requestExport() { exportCoordinator.begin(model: self) }
 
     // MARK: Persistence
 

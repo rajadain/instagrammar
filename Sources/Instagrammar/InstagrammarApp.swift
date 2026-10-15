@@ -22,7 +22,7 @@ struct InstagrammarApp: App {
                     .keyboardShortcut("o", modifiers: .command)
                 Button("Export Tiles…") { model.requestExport() }
                     .keyboardShortcut("e", modifiers: .command)
-                    .disabled(!model.hasImage)
+                    .disabled(!model.canExport)
             }
             CommandMenu("Image") {
                 Button("Rotate Left") { model.rotateLeft() }
@@ -64,6 +64,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         // `open Instagrammar.app --args /path/to/img.jpg` (also handy for agents).
         if let url = launchURL {
+            #if DEBUG
+            if ExportSelfTest.runIfRequested(url: url) { return }
+            #endif
             Task { @MainActor in AppModel.shared.openInBackground(url: url) }
         }
     }

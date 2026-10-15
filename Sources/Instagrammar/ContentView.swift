@@ -27,6 +27,7 @@ struct ContentView: View {
             return true
         } isTargeted: { isDropTargeted = $0 }
         .toolbar { toolbarContent }
+        .exportPresentation(model.exportCoordinator)
         .alert(item: $model.alert) { alert in
             Alert(title: Text(alert.title), message: Text(alert.message),
                   dismissButton: .default(Text("OK")))
@@ -88,6 +89,7 @@ struct ContentView: View {
                 Label("Export", systemImage: "square.and.arrow.up")
             }
             .buttonStyle(.borderedProminent)
+            .disabled(!model.canExport)
             .help("Export tiles (⌘E)")
         }
     }
