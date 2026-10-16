@@ -11,6 +11,21 @@ under a strip of tiles. Export writes full-resolution JPEGs that line up edge to
 - macOS 14 (Sonoma) or later
 - Swift 6 toolchain (Xcode 26 or Command Line Tools) to build from source
 
+## Download (Apple Silicon)
+
+Download `Instagrammar-<version>-macos-arm64.zip` from
+[Releases](https://github.com/rajadain/instagrammar/releases), unzip it and drag
+**Instagrammar.app** to Applications. It needs an Apple Silicon Mac on macOS 14 or later.
+
+The app is ad-hoc signed, not notarized, so macOS blocks it on first launch. Either:
+
+- open it once, then go to **System Settings → Privacy & Security** and click **Open Anyway**; or
+- clear the quarantine flag in Terminal:
+
+  ```bash
+  xattr -dr com.apple.quarantine /Applications/Instagrammar.app
+  ```
+
 ## Build and install
 
 ```bash
@@ -87,6 +102,8 @@ swift build -c release --product tiler
 | `--force, -f` | Overwrite existing files |
 
 ## Development
+
+Release zip: `scripts/package-release.sh` writes `build/Instagrammar-<version>-macos-arm64.zip`.
 
 ```bash
 swift build                     # debug build

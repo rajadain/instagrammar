@@ -27,7 +27,13 @@ After the pause, the inspector sliders were unified into one plain style with do
 **Remote:** `origin` = `git@github.com:rajadain/instagrammar.git`, with `main` pushed and tracking.
 `phase-8-wip` is **local only** and not pushed.
 
-On `main`, 86 unit tests and all four DEBUG self-tests (canvas, undo, export, preview) pass.
+**Release 1** (tag `1`, app version 1.0, 2026-10-16) is published on GitHub with an Apple
+Silicon zip from `scripts/package-release.sh`. Changes since the pause:
+- sliding carousel preview (P17)
+- exact-ratio native tile sizes (T46)
+- Portrait 3:4 as the default (P18)
+
+On `main`, 87 unit tests and all four DEBUG self-tests (canvas, undo, export, preview) pass.
 
 ## Phase 8: where it stopped
 
