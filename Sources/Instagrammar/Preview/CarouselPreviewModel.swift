@@ -72,6 +72,23 @@ final class CarouselPreviewModel {
     func previous() { if canGoPrevious { index -= 1 } }
     func next() { if canGoNext { index += 1 } }
 
+    /// The tile to settle on after a horizontal drag of `translation` points (negative = towards the
+    /// next tile). Like Instagram, a gesture moves at most one tile, once it passes a quarter tile.
+    func settledIndex(translation: CGFloat, width: CGFloat) -> Int {
+        guard width > 0 else { return index }
+        var target = index
+        if translation <= -width / 4 { target += 1 } else if translation >= width / 4 { target -= 1 }
+        return min(max(target, 0), count - 1)
+    }
+
+    /// Drag translation as displayed: resisted past the first/last tile, and never more than one
+    /// tile, so the strip can't be dragged into empty space.
+    func resistedTranslation(_ translation: CGFloat, width: CGFloat) -> CGFloat {
+        let pastEdge = (index == 0 && translation > 0) || (index == count - 1 && translation < 0)
+        let t = pastEdge ? translation / 3 : translation
+        return min(max(t, -width), width)
+    }
+
     // MARK: Rendering
 
     /// Renders all tiles in the background, a few at a time. Safe to call once.

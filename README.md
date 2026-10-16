@@ -28,7 +28,8 @@ on first launch, right-click > Open if Gatekeeper complains.
 2. Choose the tile aspect and count in the inspector.
 3. Position the photo on the canvas. The tile strip is always fully covered by the image, so
    rotating or zooming in auto-zooms as needed and there is never empty space.
-4. Preview the carousel (⌘P) one tile at a time at phone size.
+4. Preview the carousel (⌘P) at phone size. Tiles slide edge to edge like on Instagram; drag or
+   swipe slowly to inspect each seam.
 5. Export (⌘E), choose a folder, and confirm if existing files would be overwritten.
 
 ## Keyboard shortcuts
@@ -37,7 +38,7 @@ on first launch, right-click > Open if Gatekeeper complains.
 |----------|--------|
 | ⌘O | Open a photo |
 | ⌘E | Export tiles |
-| ⌘P | Preview carousel (← / → or swipe to change tile, Esc to close) |
+| ⌘P | Preview carousel (← / →, drag or swipe to slide between tiles, Esc to close) |
 | ⌘[ / ⌘] | Rotate 90° left / right |
 | ⌘0 | Reset crop |
 | Drag, or two-finger scroll | Pan the photo |

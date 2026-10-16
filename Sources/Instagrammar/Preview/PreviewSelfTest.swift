@@ -61,16 +61,52 @@ enum PreviewSelfTest {
         for _ in 0..<(preview.count + 2) { preview.next() }
         check(preview.index == preview.count - 1, "next stops at the last tile")
 
+        // Drag settling: a quarter tile moves one tile, never more; resisted past the ends.
+        let w = preview.displaySize.width
+        preview.index = 1
+        check(preview.settledIndex(translation: -w * 0.2, width: w) == 1, "short drag springs back")
+        check(preview.settledIndex(translation: -w * 0.3, width: w) == 2, "quarter-tile drag goes to next")
+        check(preview.settledIndex(translation: w * 0.3, width: w) == 0, "quarter-tile drag goes to previous")
+        check(preview.settledIndex(translation: -w * 5, width: w) == 2, "a long drag still moves one tile")
+        preview.index = 0
+        check(preview.settledIndex(translation: w, width: w) == 0, "can't drag before the first tile")
+        check(preview.resistedTranslation(90, width: w) == 30, "dragging past the first tile is resisted")
+        check(preview.resistedTranslation(-w * 3, width: w) == -w, "drag is capped at one tile")
+
         // The real sheet: open it through the model flag and look for an attached sheet window.
         model.showCarouselPreview()
         try? await Task.sleep(nanoseconds: 1_000_000_000)
         check(NSApp.windows.contains { $0.sheetParent != nil }, "⌘P sheet is presented")
+        if let sheet = NSApp.windows.first(where: { $0.sheetParent != nil }) {
+            // Snapshots at rest, mid-slide (seam visible) and after sliding to tile 2.
+            snapshot(sheet, to: folder.appendingPathComponent("sheet-1-rest.png"))
+            if let right = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+                                             windowNumber: sheet.windowNumber, context: nil, characters: "\u{F703}",
+                                             charactersIgnoringModifiers: "\u{F703}", isARepeat: false, keyCode: 124) {
+                sheet.sendEvent(right)
+            }
+            try? await Task.sleep(nanoseconds: 90_000_000)
+            snapshot(sheet, to: folder.appendingPathComponent("sheet-2-mid-slide.png"))
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            snapshot(sheet, to: folder.appendingPathComponent("sheet-3-after.png"))
+        }
         model.isShowingCarouselPreview = false
         try? await Task.sleep(nanoseconds: 500_000_000)
         check(!NSApp.windows.contains { $0.sheetParent != nil }, "sheet dismissed")
 
         if !failures.isEmpty { log("failures: \(failures.joined(separator: "; "))") }
         return failures.isEmpty
+    }
+
+    /// Captures one of our own windows (no Screen Recording permission needed); see the canvas self-test.
+    private static func snapshot(_ window: NSWindow, to url: URL) {
+        typealias Fn = @convention(c) (CGRect, UInt32, UInt32, UInt32) -> Unmanaged<CGImage>?
+        guard let handle = dlopen(nil, RTLD_NOW), let sym = dlsym(handle, "CGWindowListCreateImage"),
+              let image = unsafeBitCast(sym, to: Fn.self)(.null, 8, UInt32(window.windowNumber), 1 | 8)?
+                  .takeRetainedValue()
+        else { log("snapshot \(url.lastPathComponent): capture failed"); return }
+        _ = write(image, to: url)
+        log("snapshot \(url.path)")
     }
 
     private static func write(_ image: CGImage, to url: URL) -> Bool {
