@@ -21,6 +21,12 @@ Snapshot of where the build stands, so work can resume in a fresh session. Read 
 | 7 (hi-res refinement) | — | ⏭ skipped | T41 |
 | 8 | QA & performance | ⏸ **in progress, not merged** | see below |
 
+After the pause, the inspector sliders were unified into one plain style with double-click reset
+(P16, commit 84813af).
+
+**Remote:** `origin` = `git@github.com:rajadain/instagrammar.git`, with `main` pushed and tracking.
+`phase-8-wip` is **local only** and not pushed.
+
 On `main`, 86 unit tests and all four DEBUG self-tests (canvas, undo, export, preview) pass.
 
 ## Phase 8: where it stopped
