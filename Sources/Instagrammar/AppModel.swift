@@ -13,11 +13,16 @@ struct ModelAlert: Identifiable, Equatable {
 
 /// Settings that survive relaunches (stored as JSON in `UserDefaults`).
 struct PersistedSettings: Codable, Equatable {
-    var aspectPreset: AspectPreset = .portrait4x5
+    var aspectPreset: AspectPreset = .portrait3x4
     var customAspect: AspectRatio = .portrait4x5
     var tileCount: Int = 3
     var exportSettings: ExportSettings = ExportSettings()
     var lastExportFolderPath: String?
+    /// Version of the default-aspect migration applied (nil in settings saved before P18).
+    var defaultsVersion: Int?
+
+    /// 2 = default aspect changed from 4:5 to 3:4 (P18).
+    static let currentDefaultsVersion = 2
 }
 
 /// Document state, settings and edit operations. The single source of truth for the UI.
@@ -51,7 +56,7 @@ final class AppModel {
 
     // MARK: Persisted settings
 
-    var aspectPreset: AspectPreset = .portrait4x5 {
+    var aspectPreset: AspectPreset = .portrait3x4 {
         didSet {
             guard aspectPreset != oldValue else { return }
             if !isApplyingEdit {
@@ -124,7 +129,9 @@ final class AppModel {
         self.defaults = defaults
         if let data = defaults.data(forKey: Self.settingsKey),
            let s = try? JSONDecoder().decode(PersistedSettings.self, from: data) {
-            aspectPreset = s.aspectPreset
+            // One-time move to the new 3:4 default (P18) for settings saved while 4:5 was default.
+            let migrate = (s.defaultsVersion ?? 1) < 2 && s.aspectPreset == .portrait4x5
+            aspectPreset = migrate ? .portrait3x4 : s.aspectPreset
             customAspect = Self.isValidCustom(s.customAspect) ? s.customAspect : .portrait4x5
             tileCount = min(max(s.tileCount, TileSpec.countRange.lowerBound), TileSpec.countRange.upperBound)
             exportSettings = s.exportSettings
@@ -333,7 +340,8 @@ final class AppModel {
         guard !isRestoring else { return }
         let s = PersistedSettings(aspectPreset: aspectPreset, customAspect: customAspect,
                                   tileCount: tileCount, exportSettings: exportSettings,
-                                  lastExportFolderPath: lastExportFolderPath)
+                                  lastExportFolderPath: lastExportFolderPath,
+                                  defaultsVersion: PersistedSettings.currentDefaultsVersion)
         if let data = try? JSONEncoder().encode(s) {
             defaults.set(data, forKey: Self.settingsKey)
         }

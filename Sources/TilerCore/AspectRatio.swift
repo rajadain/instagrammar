@@ -32,7 +32,8 @@ public struct AspectRatio: Hashable, Codable, Sendable {
 
 /// The tile aspect choices offered in the UI.
 public enum AspectPreset: String, CaseIterable, Codable, Sendable {
-    case portrait4x5, portrait3x4, square, landscape191, custom
+    // Order is the UI order; 3:4 first since Instagram now frames tall posts at 3:4 (P18).
+    case portrait3x4, portrait4x5, square, landscape191, custom
 
     /// Human-readable name, e.g. "Portrait 4:5".
     public var displayName: String {

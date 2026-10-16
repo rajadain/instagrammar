@@ -1,7 +1,7 @@
 # Instagrammar
 
 A native macOS app that splits one wide photo into seamless Instagram carousel tiles. Pick an
-aspect (portrait 4:5 by default), a tile count (1–20), then pan, zoom and straighten the photo
+aspect (portrait 3:4 by default, matching Instagram's tall post size), a tile count (1–20), then pan, zoom and straighten the photo
 under a strip of tiles. Export writes full-resolution JPEGs that line up edge to edge when swiped.
 
 <img width="1392" height="912" alt="image" src="https://github.com/user-attachments/assets/3e5a0475-0b87-452a-83b3-dd2b72ff9a93" />
@@ -69,7 +69,7 @@ on first launch, right-click > Open if Gatekeeper complains.
 
 ```bash
 swift build -c release --product tiler
-.build/release/tiler photo.jpg --out tiles/ --tiles 3 --aspect 4:5
+.build/release/tiler photo.jpg --out tiles/ --tiles 3 --aspect 3:4
 ```
 
 | Option | Meaning |
@@ -77,7 +77,7 @@ swift build -c release --product tiler
 | `<input>` | Image to split |
 | `--out, -o <dir>` | Output folder (created if missing); required |
 | `--tiles, -n <1..20>` | Tile count (default 3) |
-| `--aspect W:H` | Tile aspect (default 4:5) |
+| `--aspect W:H` | Tile aspect (default 3:4) |
 | `--quarter-turns 0..3` | Clockwise 90° turns |
 | `--straighten <deg>` | Rotation within ±45° |
 | `--zoom <factor>` | Zoom relative to fit, at least 1 |

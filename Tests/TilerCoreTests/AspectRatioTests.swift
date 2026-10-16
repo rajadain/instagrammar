@@ -27,7 +27,7 @@ import Testing
         #expect(AspectPreset.landscape191.displayName == "Landscape 1.91:1")
         #expect(AspectPreset.custom.displayName == "Custom")
         #expect(AspectPreset.allCases.count == 5)
-        #expect(AspectPreset.allCases.first == .portrait4x5)
+        #expect(AspectPreset.allCases.first == .portrait3x4)
     }
 
     @Test func validity() {

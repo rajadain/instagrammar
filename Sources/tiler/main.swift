@@ -5,7 +5,7 @@ import TilerCore
 // Headless export CLI (PLAN.md §5.3). Arguments are parsed by hand; no dependencies.
 
 let usage = """
-    usage: tiler <input> --out <dir> [--tiles 3] [--aspect 4:5] [--quarter-turns 0..3]
+    usage: tiler <input> --out <dir> [--tiles 3] [--aspect 3:4] [--quarter-turns 0..3]
                  [--straighten <deg>] [--zoom <factor ≥ 1, relative to fit>]
                  [--offset <dx,dy in source px>] [--width <px>|max]
                  [--quality 0.5..1.0] [--force]
@@ -24,7 +24,7 @@ struct Options {
     var input: URL?
     var out: URL?
     var tiles = 3
-    var aspect = AspectRatio.portrait4x5
+    var aspect = AspectRatio.portrait3x4
     var quarterTurns = QuarterTurns.r0
     var straighten = 0.0
     var zoom = 1.0
