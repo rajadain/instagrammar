@@ -25,11 +25,12 @@ struct AdjustSection: View {
                     .help("Reset straighten")
                     .disabled(model.straightenDegrees == 0)
                 }
-                // A drag is one undo step, recorded when it ends.
-                Slider(value: straighten, in: AppModel.straightenRange, step: 0.1) { editing in
-                    if editing { model.beginEdit("Straighten") } else { model.endEdit() }
-                }
-                .labelsHidden()
+                // A drag is one undo step, recorded when it ends. Double-click resets to 0°.
+                PlainSlider(label: "Straighten", value: straighten, range: AppModel.straightenRange,
+                            onEditingChanged: { editing in
+                                if editing { model.beginEdit("Straighten") } else { model.endEdit() }
+                            },
+                            onReset: { model.performEdit("Straighten") { model.straightenDegrees = 0 } })
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -40,12 +41,13 @@ struct AdjustSection: View {
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
-                // Logarithmic: the slider value is ln(zoom).
-                Slider(value: logZoom, in: 0...max(log(model.zoomRange.upperBound), 0.0001)) { editing in
-                    if editing { model.beginEdit("Zoom") } else { model.endEdit() }
-                }
-                .labelsHidden()
-                .disabled(model.zoomRange.upperBound <= 1)
+                // Logarithmic: the slider value is ln(zoom). Double-click resets to 1×.
+                PlainSlider(label: "Zoom", value: logZoom, range: 0...max(log(model.zoomRange.upperBound), 0.0001),
+                            onEditingChanged: { editing in
+                                if editing { model.beginEdit("Zoom") } else { model.endEdit() }
+                            },
+                            onReset: { model.performEdit("Zoom") { model.zoom = 1 } })
+                    .disabled(model.zoomRange.upperBound <= 1)
             }
 
             HStack {
@@ -69,7 +71,11 @@ struct AdjustSection: View {
 
     private var straighten: Binding<Double> {
         Binding(get: { model.straightenDegrees },
-                set: { v in model.performEdit("Straighten") { model.straightenDegrees = v } })
+                set: { v in
+                    // Keep the 0.1° resolution the slider used to enforce with `step`.
+                    let rounded = (v * 10).rounded() / 10
+                    model.performEdit("Straighten") { model.straightenDegrees = rounded }
+                })
     }
 
     private var logZoom: Binding<Double> {

@@ -54,8 +54,9 @@ struct ExportSection: View {
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
-                Slider(value: qualityBinding, in: ExportSettings.qualityRange, step: 0.01)
-                    .labelsHidden()
+                // Double-click resets to the default (100%).
+                PlainSlider(label: "Quality", value: qualityBinding, range: ExportSettings.qualityRange,
+                            onReset: { model.exportSettings.quality = ExportSettings().quality })
             }
 
             Button("Export Tiles…") { model.requestExport() }
@@ -92,7 +93,7 @@ struct ExportSection: View {
 
     private var qualityBinding: Binding<Double> {
         Binding(get: { model.exportSettings.quality },
-                set: { model.exportSettings.quality = $0 })
+                set: { model.exportSettings.quality = ($0 * 100).rounded() / 100 })
     }
 
     // MARK: Helpers
