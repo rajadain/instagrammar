@@ -4,6 +4,8 @@ A native macOS app that splits one wide photo into seamless Instagram carousel t
 aspect (portrait 4:5 by default), a tile count (1–20), then pan, zoom and straighten the photo
 under a strip of tiles. Export writes full-resolution JPEGs that line up edge to edge when swiped.
 
+<img width="1392" height="912" alt="image" src="https://github.com/user-attachments/assets/3e5a0475-0b87-452a-83b3-dd2b72ff9a93" />
+
 ## Requirements
 
 - macOS 14 (Sonoma) or later
