@@ -127,13 +127,34 @@ public enum CropGeometry {
         CGSize(width: state.width / Double(spec.count), height: state.height(for: spec))
     }
 
-    /// The "Maximum" export size: `tw = floor(w/N)`, `th = floor(tw / a)`. A 1e-6 tolerance
+    /// The "Maximum" export size: the largest whole-pixel tile within `w/N × h`. When the aspect
+    /// is a ratio of whole numbers (4:5, 3:4, 1:1, 1.91:1 = 191:100) the size is **exactly** that
+    /// ratio (e.g. 2036 × 2545 for 4:5), so Instagram never sees a tile a fraction of a pixel
+    /// wider than its frame. Otherwise `tw = floor(w/N)`, `th = floor(tw / a)`. A 1e-6 tolerance
     /// absorbs floating-point noise so e.g. 1599.9999999 counts as 1600.
     public static func nativeTilePixelSize(state: CropState, spec: TileSpec) -> (width: Int, height: Int) {
         let eps = 1e-6
-        let tw = max(0, Int(floor(state.width / Double(spec.count) + eps)))
-        let th = max(0, Int(floor(Double(tw) * spec.aspect.height / spec.aspect.width + eps)))
-        return (tw, th)
+        let maxWidth = max(0, Int(floor(state.width / Double(spec.count) + eps)))
+        if let (p, q) = integerRatio(spec.aspect), maxWidth >= p {
+            let k = maxWidth / p
+            return (k * p, k * q)
+        }
+        let th = max(0, Int(floor(Double(maxWidth) * spec.aspect.height / spec.aspect.width + eps)))
+        return (maxWidth, th)
+    }
+
+    /// The aspect as a reduced whole-number ratio `p:q` when it is one (up to two decimals and
+    /// at most 400 on either side), e.g. 4:5 → (4, 5), 1.91:1 → (191, 100); nil otherwise.
+    public static func integerRatio(_ aspect: AspectRatio) -> (p: Int, q: Int)? {
+        for scale in [1.0, 10, 100] {
+            let w = aspect.width * scale, h = aspect.height * scale
+            guard abs(w - w.rounded()) < 1e-9, abs(h - h.rounded()) < 1e-9, w >= 1, h >= 1 else { continue }
+            var a = Int(w.rounded()), b = Int(h.rounded())
+            while b != 0 { (a, b) = (b, a % b) }
+            let p = Int(w.rounded()) / a, q = Int(h.rounded()) / a
+            return p <= 400 && q <= 400 ? (p, q) : nil
+        }
+        return nil
     }
 
     // MARK: - Transforms

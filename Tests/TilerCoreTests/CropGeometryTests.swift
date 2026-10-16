@@ -183,11 +183,37 @@ private let wide = CGSize(width: 6000, height: 2000)
 
         let odd = CropState(center: .zero, width: 1000, angle: 0)
         let n2 = CropGeometry.nativeTilePixelSize(state: odd, spec: spec3x45)
-        #expect(n2.width == 333 && n2.height == 416)   // floor(333 / 0.8) = 416
+        #expect(n2.width == 332 && n2.height == 415)   // largest exact 4:5 within 333.3 wide
 
         let ls = TileSpec(aspect: .landscape191, count: 2)
         let n3 = CropGeometry.nativeTilePixelSize(state: CropState(center: .zero, width: 3820), spec: ls)
         #expect(n3.width == 1910 && n3.height == 1000)
+    }
+
+    /// Instagram frames a carousel at an exact ratio, so a tile even a fraction of a pixel wider
+    /// can be panned sideways. Native tiles must be exactly the chosen ratio and fit the strip.
+    @Test func nativeTilePixelSizeIsExactRatio() {
+        let aspects: [AspectRatio] = [.portrait4x5, .portrait3x4, .square, .landscape191,
+                                      AspectRatio(width: 2, height: 3)]
+        for aspect in aspects {
+            let (p, q) = CropGeometry.integerRatio(aspect)!
+            for count in [1, 2, 3, 7, 20] {
+                let spec = TileSpec(aspect: aspect, count: count)
+                for width in stride(from: 2000.0, through: 9000.0, by: 37.3) {
+                    let state = CropState(center: .zero, width: width)
+                    let n = CropGeometry.nativeTilePixelSize(state: state, spec: spec)
+                    // Too narrow for one whole p:q step (only 1.91:1 at many tiles): plain rounding.
+                    guard width / Double(count) >= Double(p) else { continue }
+                    #expect(n.width * q == n.height * p, "\(aspect) \(count) \(width): \(n)")
+                    #expect(Double(n.width) <= width / Double(count) + 1e-6)
+                    #expect(Double(n.height) <= state.height(for: spec) + 1e-6)
+                    #expect(Double(n.width) > width / Double(count) - Double(p) - 1e-6, "loses < one ratio step")
+                }
+            }
+        }
+        #expect(CropGeometry.integerRatio(.portrait4x5)! == (4, 5))
+        #expect(CropGeometry.integerRatio(.landscape191)! == (191, 100))
+        #expect(CropGeometry.integerRatio(AspectRatio(width: 1.333, height: 1)) == nil)
     }
 
     // MARK: transforms
